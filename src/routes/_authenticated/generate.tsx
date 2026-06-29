@@ -35,22 +35,25 @@ function GeneratePage() {
         apiKey: key,
         apiProvider: provider,
       });
-      await new Promise((r) => setTimeout(r, 1800));
+      await new Promise((r) => setTimeout(r, 1200));
       const { data: userRes } = await supabase.auth.getUser();
       const user = userRes.user;
       if (!user) throw new Error("Not signed in");
+      const payload = {
+        user_id: user.id,
+        topic: result.topic || "(no topic)",
+        card_id: result.card.id,
+        card_title: result.card.title,
+        card_category: result.card.category,
+        student_steps: result.student_steps,
+        wrap_up_protocol: result.wrap_up_protocol,
+        source: result.source,
+        game: result.game,
+        wrap_up: result.wrapUp,
+      };
       const { data, error } = await supabase
         .from("activity_logs")
-        .insert({
-          user_id: user.id,
-          topic: result.topic || "(no topic)",
-          card_id: result.card.id,
-          card_title: result.card.title,
-          card_category: result.card.category,
-          student_steps: result.student_steps,
-          wrap_up_protocol: result.wrap_up_protocol,
-          source: result.source,
-        })
+        .insert(payload as never)
         .select("id")
         .single();
       if (error) throw error;
@@ -58,7 +61,7 @@ function GeneratePage() {
     },
     onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: ["activity_logs"] });
-      toast.success("Activity ready.");
+      toast.success("Activity, game & wrap-up ready.");
       navigate({ to: "/history", search: { open: id } as never });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Generation failed"),
@@ -75,8 +78,8 @@ function GeneratePage() {
   if (mutation.isPending) {
     return (
       <div className="space-y-6">
-        <h1 className="font-display text-3xl md:text-4xl font-semibold">Scouting Deck & Adapting…</h1>
-        <p className="text-muted-foreground text-sm">Matching your topic to a zero-material card and rewriting its mechanics.</p>
+        <h1 className="font-display text-3xl md:text-4xl font-semibold">Scouting Deck, Game & Wrap-up…</h1>
+        <p className="text-muted-foreground text-sm">Pairing your topic with a card, a 30-minute game, and a closing ritual.</p>
         <div className="grid gap-3">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-card p-4 animate-pulse">
@@ -96,7 +99,7 @@ function GeneratePage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">Generate</h1>
-        <p className="text-muted-foreground text-sm mt-1">A topic, a snapshot, or a coin flip — and a class-ready ritual comes back.</p>
+        <p className="text-muted-foreground text-sm mt-1">Returns three things: an activity card, a 30-minute non-material game, and a separate closing ritual.</p>
       </div>
 
       <Card className="p-5 space-y-5">
@@ -132,7 +135,7 @@ function GeneratePage() {
           )}
           <div className="ml-auto flex items-center gap-2 rounded-lg border border-border px-3 py-2">
             <Shuffle className="h-4 w-4 text-muted-foreground" />
-            <Label htmlFor="random" className="text-sm">Draw Random Card</Label>
+            <Label htmlFor="random" className="text-sm">Draw Random</Label>
             <Switch id="random" checked={drawRandom} onCheckedChange={setDrawRandom} />
           </div>
         </div>
@@ -144,7 +147,7 @@ function GeneratePage() {
           className="w-full h-12 text-base"
         >
           <Sparkles className="h-4 w-4 mr-2" />
-          Generate Activity
+          Generate Activity + Game + Wrap-up
         </Button>
 
         <div className="text-xs text-muted-foreground border-t border-border pt-3">

@@ -1,0 +1,3 @@
+ALTER TABLE public.activity_logs
+  ADD COLUMN IF NOT EXISTS game JSONB,
+  ADD COLUMN IF NOT EXISTS wrap_up JSONB;

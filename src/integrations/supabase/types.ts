@@ -20,11 +20,13 @@ export type Database = {
           card_id: string
           card_title: string
           created_at: string
+          game: Json | null
           id: string
           source: string
           student_steps: Json
           topic: string
           user_id: string
+          wrap_up: Json | null
           wrap_up_protocol: string
         }
         Insert: {
@@ -32,11 +34,13 @@ export type Database = {
           card_id: string
           card_title: string
           created_at?: string
+          game?: Json | null
           id?: string
           source?: string
           student_steps: Json
           topic: string
           user_id: string
+          wrap_up?: Json | null
           wrap_up_protocol: string
         }
         Update: {
@@ -44,11 +48,13 @@ export type Database = {
           card_id?: string
           card_title?: string
           created_at?: string
+          game?: Json | null
           id?: string
           source?: string
           student_steps?: Json
           topic?: string
           user_id?: string
+          wrap_up?: Json | null
           wrap_up_protocol?: string
         }
         Relationships: []

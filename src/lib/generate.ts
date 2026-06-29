@@ -1,4 +1,6 @@
 import { ACTIVITIES, type Activity, type Category } from "./activities";
+import { GAMES, type Game } from "./games";
+import { WRAPUPS, pickWrapUp, type WrapUp } from "./wrapups";
 
 export interface GenerateInput {
   topic: string;
@@ -11,6 +13,8 @@ export interface GenerateInput {
 
 export interface GenerateResult {
   card: Activity;
+  game: Game;
+  wrapUp: WrapUp;
   topic: string;
   student_steps: { title: string; duration: string }[];
   wrap_up_protocol: string;
@@ -24,16 +28,24 @@ const KEYWORD_MAP: { test: RegExp; cat: Category }[] = [
   { test: /(recap|summary|close|review|reflect|exit|wrap|anchor|lock)/i, cat: "Anchor & Lock" },
 ];
 
+function pickCategory(topic: string, preferred?: Category | null): Category {
+  if (preferred) return preferred;
+  const matched = KEYWORD_MAP.find((k) => k.test.test(topic));
+  return matched?.cat ?? "Anchor & Lock";
+}
+
 export function pickCard(topic: string, preferred?: Category | null, drawRandom = false): Activity {
   if (drawRandom) return ACTIVITIES[Math.floor(Math.random() * ACTIVITIES.length)];
-  if (preferred) {
-    const pool = ACTIVITIES.filter((a) => a.category === preferred);
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-  const matched = KEYWORD_MAP.find((k) => k.test.test(topic));
-  const cat: Category = matched?.cat ?? "Anchor & Lock";
+  const cat = pickCategory(topic, preferred);
   const pool = ACTIVITIES.filter((a) => a.category === cat);
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+export function pickGame(topic: string, preferred?: Category | null, drawRandom = false): Game {
+  if (drawRandom) return GAMES[Math.floor(Math.random() * GAMES.length)];
+  const cat = pickCategory(topic, preferred);
+  const pool = GAMES.filter((g) => g.category === cat);
+  return (pool.length ? pool : GAMES)[Math.floor(Math.random() * (pool.length ? pool.length : GAMES.length))];
 }
 
 function adaptStepsLocally(card: Activity, topic: string) {
@@ -44,12 +56,7 @@ function adaptStepsLocally(card: Activity, topic: string) {
   }));
 }
 
-function adaptWrapLocally(card: Activity, topic: string) {
-  const t = topic.trim() || "the concept";
-  return `${card.wrap_up_protocol}\n\nClosing anchor (5 min): Teacher restates "${t}" in one sentence. Each student offers one word capturing what they will carry forward. Class repeats those words as a single rolling chant. End on a shared exhale.`;
-}
-
-async function callLLM(input: GenerateInput, card: Activity): Promise<{ steps: { title: string; duration: string }[]; wrap: string } | null> {
+async function callLLM(input: GenerateInput, card: Activity): Promise<{ steps: { title: string; duration: string }[] } | null> {
   if (!input.apiKey) return null;
   const provider = input.apiProvider ?? "openai";
   const prompt = `You are adapting a zero-material classroom activity to a teacher's topic.
@@ -58,11 +65,9 @@ ACTIVITY TITLE: ${card.title}
 CATEGORY: ${card.category}
 ORIGINAL MECHANIC: ${card.original_mechanic}
 ORIGINAL STEPS: ${JSON.stringify(card.student_steps)}
-ORIGINAL WRAP-UP: ${card.wrap_up_protocol}
 
-Return STRICT JSON with this shape and nothing else:
-{"student_steps":[{"title":"...","duration":"X min"}],"wrap_up_protocol":"..."}
-Keep 4–6 steps. Make titles concrete to the topic. Wrap-up must be a 5-minute closing ritual narrated step-by-step.`;
+Return STRICT JSON: {"student_steps":[{"title":"...","duration":"X min"}]}
+Keep 4–6 steps. Make titles concrete to the topic.`;
 
   try {
     let text = "";
@@ -97,8 +102,8 @@ Keep 4–6 steps. Make titles concrete to the topic. Wrap-up must be a 5-minute 
       text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     }
     const parsed = JSON.parse(text);
-    if (!parsed?.student_steps || !parsed?.wrap_up_protocol) return null;
-    return { steps: parsed.student_steps, wrap: parsed.wrap_up_protocol };
+    if (!parsed?.student_steps) return null;
+    return { steps: parsed.student_steps };
   } catch {
     return null;
   }
@@ -106,21 +111,18 @@ Keep 4–6 steps. Make titles concrete to the topic. Wrap-up must be a 5-minute 
 
 export async function generateActivity(input: GenerateInput): Promise<GenerateResult> {
   const card = pickCard(input.topic, input.preferredCategory, input.drawRandom);
+  const game = pickGame(input.topic, input.preferredCategory, input.drawRandom);
+  const wrapUp = pickWrapUp(card.category);
   const llm = await callLLM(input, card);
-  if (llm) {
-    return {
-      card,
-      topic: input.topic,
-      student_steps: llm.steps,
-      wrap_up_protocol: llm.wrap,
-      source: "llm",
-    };
-  }
   return {
     card,
+    game,
+    wrapUp,
     topic: input.topic,
-    student_steps: adaptStepsLocally(card, input.topic),
-    wrap_up_protocol: adaptWrapLocally(card, input.topic),
-    source: "local",
+    student_steps: llm ? llm.steps : adaptStepsLocally(card, input.topic),
+    wrap_up_protocol: card.wrap_up_protocol,
+    source: llm ? "llm" : "local",
   };
 }
+
+export { GAMES, WRAPUPS };
